@@ -6,15 +6,18 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
+    "check": "node index.js --check",
     "login:naver": "node index.js --login naver",
     "login:tistory": "node index.js --login tistory",
-    "login:all": "node index.js --login all"
+    "login:all": "node index.js --login all",
+    "post:tistory": "node index.js --post tistory",
+    "post:naver": "node index.js --post naver",
+    "post:all": "node index.js --post all"
   },
   "dependencies": {
-    "playwright": "^1.44.0",
+    "@anthropic-ai/sdk": "^0.24.0",
     "dotenv": "^16.4.5",
-    "winston": "^3.13.0",
-    "marked": "^12.0.0",
-    "@anthropic-ai/sdk": "^0.24.0"
+    "playwright": "^1.44.0",
+    "winston": "^3.13.0"
   }
 }

@@ -5,11 +5,6 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "check": "node index.js --check",
-    "login:naver": "node index.js --login naver",
-    "login:tistory": "node index.js --login tistory",
-    "login:all": "node index.js --login all",
     "post:tistory": "node index.js --post tistory",
     "post:naver": "node index.js --post naver",
     "post:all": "node index.js --post all"

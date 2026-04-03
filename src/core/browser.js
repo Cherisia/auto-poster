@@ -1,32 +1,25 @@
 import { chromium } from 'playwright';
-import { readConfig } from './config.js';
 
-let _browser = null;
-
-export async function getBrowser() {
-  if (_browser) return _browser;
-  const config = readConfig();
-  _browser = await chromium.launch({
-    headless: config.browser.headless,
-    args: ['--lang=ko-KR'],
-  });
-  return _browser;
+/**
+ * 실행 중인 크롬에 CDP로 연결
+ * start-chrome.bat 으로 크롬을 먼저 실행해야 합니다
+ */
+export async function connectBrowser() {
+  try {
+    const browser = await chromium.connectOverCDP('http://localhost:9222');
+    return browser;
+  } catch {
+    throw new Error(
+      'start-chrome.bat 을 먼저 실행하고 티스토리 로그인 후 다시 시도하세요.'
+    );
+  }
 }
 
 /**
- * 새 컨텍스트 생성
- * storageState 파일이 있으면 세션(쿠키 등) 복원
+ * 연결된 브라우저에서 새 페이지 생성
  */
-export async function newContext(storageStatePath = null) {
-  const browser = await getBrowser();
-  const options = { locale: 'ko-KR', timezoneId: 'Asia/Seoul' };
-  if (storageStatePath) options.storageState = storageStatePath;
-  return browser.newContext(options);
-}
-
-export async function closeBrowser() {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
+export async function newPage(browser) {
+  const contexts = browser.contexts();
+  const context = contexts[0];
+  return context.newPage();
 }

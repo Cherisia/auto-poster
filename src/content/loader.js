@@ -1,22 +1,37 @@
-import { readFileSync, existsSync } from 'fs';
+import 'dotenv/config';
+import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-const BLOG_BASE = 'C:/Users/user/OneDrive/바탕 화면/희찬/blog';
+const BLOG_BASE = process.env.BLOG_BASE;
 
 /**
- * 오늘 날짜 디렉토리 경로 반환 (YYYYMMDD 형식)
+ * 오늘 날짜 폴더 반환 (YYYYMMDD 또는 YYYYMMDD-* 형식)
+ * 오늘 폴더 없으면 가장 최근 폴더 사용
  */
 function getTodayDir() {
+  if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
+
   const today = new Date();
   const yyyy = today.getFullYear();
   const mm   = String(today.getMonth() + 1).padStart(2, '0');
   const dd   = String(today.getDate()).padStart(2, '0');
-  const dirPath = join(BLOG_BASE, `${yyyy}${mm}${dd}`);
+  const todayPrefix = `${yyyy}${mm}${dd}`;
 
-  if (!existsSync(dirPath)) {
-    throw new Error(`오늘 날짜 디렉토리가 없습니다: ${dirPath}`);
-  }
-  return dirPath;
+  // YYYYMMDD 로 시작하는 폴더 전체 탐색
+  const dirs = readdirSync(BLOG_BASE)
+    .filter(f => /^\d{8}/.test(f))
+    .sort()
+    .reverse();
+
+  if (dirs.length === 0) throw new Error(`블로그 폴더가 없습니다: ${BLOG_BASE}`);
+
+  // 오늘 날짜로 시작하는 폴더 우선
+  const todayDir = dirs.find(f => f.startsWith(todayPrefix));
+  if (todayDir) return join(BLOG_BASE, todayDir);
+
+  // 없으면 가장 최근 폴더
+  console.log(`[loader] 오늘 폴더 없음 → 최근 폴더 사용: ${dirs[0]}`);
+  return join(BLOG_BASE, dirs[0]);
 }
 
 /**

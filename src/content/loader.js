@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { extname } from 'path';
 
 const BLOG_BASE = process.env.BLOG_BASE;
 
@@ -132,9 +133,15 @@ export function loadTodayPost(platform) {
   }
 
   const raw = readFileSync(txtFile, 'utf-8');
-  const { title, category, tags, contentHtml, imageDescriptions } = parseTxt(raw);
+  const { title, category, tags, contentHtml: txtBody, imageDescriptions } = parseTxt(raw);
 
-  const images = extractImagePlaceholders(contentHtml, dirPath).map(img => ({
+  // platform.html 이 있으면 본문으로 사용 (네이버용)
+  const htmlFile = join(dirPath, `${platform}.html`);
+  const bodyHtml = existsSync(htmlFile)
+    ? readFileSync(htmlFile, 'utf-8')
+    : txtBody;
+
+  const images = extractImagePlaceholders(bodyHtml, dirPath).map(img => ({
     ...img,
     description: imageDescriptions[img.filename] || img.filename,
   }));
@@ -143,8 +150,18 @@ export function loadTodayPost(platform) {
     title,
     category,
     tags,
-    contentHtml,
+    contentHtml: bodyHtml,
     images,
     dirPath,
   };
+}
+
+/**
+ * 이미지 파일을 base64 data URI로 변환
+ */
+export function imageToDataUri(absolutePath) {
+  const ext = extname(absolutePath).slice(1).toLowerCase();
+  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[ext] || 'image/png';
+  const data = readFileSync(absolutePath).toString('base64');
+  return `data:${mime};base64,${data}`;
 }

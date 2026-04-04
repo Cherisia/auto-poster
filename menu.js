@@ -2,6 +2,7 @@ import 'dotenv/config';
 import readline from 'readline';
 import { listBlogDirs } from './src/content/loader.js';
 import { tistoryPost } from './src/platforms/tistory.js';
+import { naverPost }   from './src/platforms/naver.js';
 import { loadTodayPost } from './src/content/loader.js';
 
 const args = process.argv.slice(2);
@@ -51,6 +52,8 @@ async function main() {
 
   if (platform === 'tistory') {
     await tistoryPost(post);
+  } else if (platform === 'naver') {
+    await naverPost(post);
   } else {
     console.log(`[error] 지원하지 않는 플랫폼: ${platform}`);
     process.exit(1);

@@ -11,6 +11,9 @@ const BLOG_BASE = process.env.BLOG_BASE;
 function getTodayDir() {
   if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
 
+  // BLOG_DIR 환경변수로 특정 폴더 지정 가능
+  if (process.env.BLOG_DIR) return process.env.BLOG_DIR;
+
   const today = new Date();
   const yyyy = today.getFullYear();
   const mm   = String(today.getMonth() + 1).padStart(2, '0');
@@ -34,11 +37,22 @@ function getTodayDir() {
   return join(BLOG_BASE, dirs[0]);
 }
 
+export function listBlogDirs() {
+  if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
+  return readdirSync(BLOG_BASE)
+    .filter(f => /^\d{8}/.test(f))
+    .sort()
+    .reverse()
+    .map(name => ({ name, path: join(BLOG_BASE, name) }));
+}
+
 /**
  * txt 파일 헤더 파싱
  * 제목: ...
  * 카테고리: ... (티스토리) / 주제: ... (네이버)
  * 태그: #tag1 #tag2
+ * 이미지 디스크립션:
+ * - filename.png: 설명 텍스트
  * ---
  * [HTML 본문]
  */
@@ -47,7 +61,24 @@ function parseTxt(raw) {
   const body = bodyParts.join('\n---\n').trim();
 
   const meta = {};
+  const imageDescriptions = {}; // { filename: description }
+  let inImageDesc = false;
+
   for (const line of headerPart.split('\n')) {
+    if (line.trim() === '이미지 디스크립션:') {
+      inImageDesc = true;
+      continue;
+    }
+    if (inImageDesc) {
+      // - filename.png: 설명 텍스트
+      const descMatch = line.match(/^-\s*([^:]+):\s*(.+)/);
+      if (descMatch) {
+        imageDescriptions[descMatch[1].trim()] = descMatch[2].trim();
+      } else if (line.trim() && !line.startsWith('-')) {
+        inImageDesc = false;
+      }
+      continue;
+    }
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
     const key   = line.slice(0, colonIdx).trim();
@@ -59,10 +90,11 @@ function parseTxt(raw) {
   const tags = (meta['태그'] || '').match(/#[^\s#]+/g)?.map(t => t.slice(1)) || [];
 
   return {
-    title:       meta['제목'] || '',
-    category:    meta['카테고리'] || meta['주제'] || '',
+    title:            meta['제목'] || '',
+    category:         meta['카테고리'] || meta['주제'] || '',
     tags,
-    contentHtml: body,
+    contentHtml:      body,
+    imageDescriptions,
   };
 }
 
@@ -100,14 +132,19 @@ export function loadTodayPost(platform) {
   }
 
   const raw = readFileSync(txtFile, 'utf-8');
-  const { title, category, tags, contentHtml } = parseTxt(raw);
+  const { title, category, tags, contentHtml, imageDescriptions } = parseTxt(raw);
+
+  const images = extractImagePlaceholders(contentHtml, dirPath).map(img => ({
+    ...img,
+    description: imageDescriptions[img.filename] || img.filename,
+  }));
 
   return {
     title,
     category,
     tags,
     contentHtml,
-    images: extractImagePlaceholders(contentHtml, dirPath),
+    images,
     dirPath,
   };
 }

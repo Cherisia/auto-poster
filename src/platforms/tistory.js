@@ -76,13 +76,10 @@ async function uploadImagesAndReplace(page, html, images) {
       continue;
     }
     console.log(`[tistory] 이미지 업로드 중: ${img.filename}`);
-    const cdnUrl = await uploadImage(page, img.absolutePath);
-    if (cdnUrl) {
-      result = result.replace(
-        img.placeholder,
-        `<img src="${cdnUrl}" alt="${img.filename}" style="max-width:100%;" />`
-      );
-      console.log(`[tistory] 업로드 완료: ${img.filename} → ${cdnUrl}`);
+    const template = await uploadImage(page, img.absolutePath, img.description);
+    if (template) {
+      result = result.replace(img.placeholder, `<p>${template}</p>`);
+      console.log(`[tistory] 업로드 완료: ${img.filename}`);
     } else {
       console.log(`[tistory] 업로드 실패, 스킵: ${img.filename}`);
     }
@@ -90,34 +87,55 @@ async function uploadImagesAndReplace(page, html, images) {
   return result;
 }
 
-async function uploadImage(page, absolutePath) {
+async function uploadImage(page, absolutePath, description) {
   try {
     const [fileChooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 5000 }),
       page.evaluate(async () => {
-        document.getElementById('mceu_0').click();
-        await new Promise(r => setTimeout(r, 300));
-        document.getElementById('attach-image').click();
+        // 첨부 버튼 (aria-label="첨부") 클릭
+        const attachDiv = Array.from(document.querySelectorAll('[aria-label="첨부"]'))
+          .find(el => el.offsetParent !== null);
+        if (attachDiv) attachDiv.click();
+        await new Promise(r => setTimeout(r, 400));
+        // 사진 메뉴 아이템 클릭
+        const photoItem = document.getElementById('attach-image');
+        if (photoItem) photoItem.click();
       }),
     ]);
     await fileChooser.setFiles(absolutePath);
     await page.waitForTimeout(4000);
 
-    const cdnUrl = await page.evaluate(() => {
+    // TinyMCE에서 [##_Image|...|CDM|버전|{json}_##] 템플릿 추출
+    const template = await page.evaluate((desc) => {
       const ed = window.tinymce?.get('editor-tistory');
       if (!ed) return null;
-      const imgs = ed.getBody().querySelectorAll('img');
-      return imgs[imgs.length - 1]?.src || null;
-    });
+      const content = ed.getContent();
 
-    if (cdnUrl) {
-      await page.evaluate(() => {
-        const ed = window.tinymce?.get('editor-tistory');
-        const imgs = ed?.getBody().querySelectorAll('img');
-        if (imgs?.length > 0) imgs[imgs.length - 1].remove();
-      });
-    }
-    return cdnUrl;
+      // 티스토리 이미지 템플릿 매칭
+      const regex = /\[##_Image\|([^|]+)\|CDM\|([^|]+)\|(\{.*?\})_##\]/;
+      const match = content.match(regex);
+      if (!match) return null;
+
+      let template = match[0];
+
+      // caption 필드에 설명 주입
+      if (desc) {
+        try {
+          const meta = JSON.parse(match[3]);
+          meta.caption = desc;
+          template = `[##_Image|${match[1]}|CDM|${match[2]}|${JSON.stringify(meta)}_##]`;
+        } catch {
+          template = template.replace(/"caption":"[^"]*"/, `"caption":"${desc.replace(/"/g, '\\"')}"`);
+        }
+      }
+
+      // 에디터에서 제거 (나중에 setContent로 전체 주입)
+      ed.setContent(content.replace(match[0], '').trim());
+
+      return template;
+    }, description || '');
+
+    return template;
   } catch (err) {
     console.log(`[tistory] 이미지 업로드 오류: ${err.message}`);
     return null;

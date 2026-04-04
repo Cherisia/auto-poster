@@ -4,28 +4,7 @@
     "comment": "발행 모드: 'draft'(임시저장) | 'publish'(즉시발행)"
   },
   "platforms": {
-    "naver": {
-      "enabled": true,
-      "defaultCategory": ""
-    },
-    "tistory": {
-      "enabled": true,
-      "defaultCategory": ""
-    }
-  },
-  "ai": {
-    "enabled": false,
-    "model": "claude-opus-4-6",
-    "defaultTone": "친근한",
-    "defaultLength": 1000
-  },
-  "browser": {
-    "headless": false,
-    "comment": "headless: false 이면 브라우저 창이 보임 (디버깅에 유용), true 이면 백그라운드 실행"
-  },
-  "scheduler": {
-    "enabled": false,
-    "cron": "0 9 * * *",
-    "comment": "cron: 매일 오전 9시 발행. enabled: true 이면 자동 스케줄 실행"
+    "tistory": { "enabled": true },
+    "naver":   { "enabled": false }
   }
 }

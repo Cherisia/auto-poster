@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-node menu.js tistory
+node index.js tistory
 pause

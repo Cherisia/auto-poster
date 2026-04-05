@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { existsSync } from 'fs';
 import { connectBrowser, newPage } from '../core/browser.js';
 import { readConfig } from '../core/config.js';
@@ -112,6 +111,7 @@ async function publish(page) {
 
 async function uploadImagesAndReplace(page, html, images) {
   if (!images?.length) return html;
+
   let result = html;
   for (const img of images) {
     if (!existsSync(img.absolutePath)) {
@@ -152,13 +152,13 @@ async function uploadImage(page, absolutePath, description) {
       if (!ed) return null;
 
       const content = ed.getContent();
-      const match = content.match(/\[##_Image\|([^|]+)\|CDM\|([^|]+)\|(\{.*?\})_##\]/);
+      const match   = content.match(/\[##_Image\|([^|]+)\|CDM\|([^|]+)\|(\{.*?\})_##\]/);
       if (!match) return null;
 
       let template = match[0];
       if (desc) {
         try {
-          const meta = JSON.parse(match[3]);
+          const meta  = JSON.parse(match[3]);
           meta.caption = desc;
           template = `[##_Image|${match[1]}|CDM|${match[2]}|${JSON.stringify(meta)}_##]`;
         } catch {

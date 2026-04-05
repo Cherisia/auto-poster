@@ -1,27 +1,18 @@
-import 'dotenv/config';
 import { readFileSync, existsSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { extname } from 'path';
+import { join, extname } from 'path';
 
 const BLOG_BASE = process.env.BLOG_BASE;
 
-/**
- * 오늘 날짜 폴더 반환 (YYYYMMDD 또는 YYYYMMDD-* 형식)
- * 오늘 폴더 없으면 가장 최근 폴더 사용
- */
-function getTodayDir() {
-  if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
+/* ───────── 폴더 탐색 ───────── */
 
-  // BLOG_DIR 환경변수로 특정 폴더 지정 가능
+/**
+ * BLOG_DIR 환경변수 → 직접 지정 폴더
+ * 없으면 BLOG_BASE 에서 오늘 날짜(YYYYMMDD) 폴더, 없으면 가장 최근 폴더
+ */
+function resolveDir() {
+  if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
   if (process.env.BLOG_DIR) return process.env.BLOG_DIR;
 
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm   = String(today.getMonth() + 1).padStart(2, '0');
-  const dd   = String(today.getDate()).padStart(2, '0');
-  const todayPrefix = `${yyyy}${mm}${dd}`;
-
-  // YYYYMMDD 로 시작하는 폴더 전체 탐색
   const dirs = readdirSync(BLOG_BASE)
     .filter(f => /^\d{8}/.test(f))
     .sort()
@@ -29,15 +20,17 @@ function getTodayDir() {
 
   if (dirs.length === 0) throw new Error(`블로그 폴더가 없습니다: ${BLOG_BASE}`);
 
-  // 오늘 날짜로 시작하는 폴더 우선
-  const todayDir = dirs.find(f => f.startsWith(todayPrefix));
-  if (todayDir) return join(BLOG_BASE, todayDir);
+  const today = new Date();
+  const prefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+  const todayDir = dirs.find(f => f.startsWith(prefix));
 
-  // 없으면 가장 최근 폴더
-  console.log(`[loader] 오늘 폴더 없음 → 최근 폴더 사용: ${dirs[0]}`);
-  return join(BLOG_BASE, dirs[0]);
+  if (!todayDir) console.log(`[loader] 오늘 폴더 없음 → 최근 폴더 사용: ${dirs[0]}`);
+  return join(BLOG_BASE, todayDir || dirs[0]);
 }
 
+/**
+ * YYYYMMDD 형식 폴더 목록 (최신순)
+ */
 export function listBlogDirs() {
   if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
   return readdirSync(BLOG_BASE)
@@ -47,8 +40,11 @@ export function listBlogDirs() {
     .map(name => ({ name, path: join(BLOG_BASE, name) }));
 }
 
+/* ───────── txt 파싱 ───────── */
+
 /**
  * txt 파일 헤더 파싱
+ *
  * 제목: ...
  * 카테고리: ... (티스토리) / 주제: ... (네이버)
  * 태그: #tag1 #tag2
@@ -62,7 +58,7 @@ function parseTxt(raw) {
   const body = bodyParts.join('\n---\n').trim();
 
   const meta = {};
-  const imageDescriptions = {}; // { filename: description }
+  const imageDescriptions = {};
   let inImageDesc = false;
 
   for (const line of headerPart.split('\n')) {
@@ -71,10 +67,9 @@ function parseTxt(raw) {
       continue;
     }
     if (inImageDesc) {
-      // - filename.png: 설명 텍스트
-      const descMatch = line.match(/^-\s*([^:]+):\s*(.+)/);
-      if (descMatch) {
-        imageDescriptions[descMatch[1].trim()] = descMatch[2].trim();
+      const m = line.match(/^-\s*([^:]+):\s*(.+)/);
+      if (m) {
+        imageDescriptions[m[1].trim()] = m[2].trim();
       } else if (line.trim() && !line.startsWith('-')) {
         inImageDesc = false;
       }
@@ -82,36 +77,34 @@ function parseTxt(raw) {
     }
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
-    const key   = line.slice(0, colonIdx).trim();
-    const value = line.slice(colonIdx + 1).trim();
-    meta[key] = value;
+    meta[line.slice(0, colonIdx).trim()] = line.slice(colonIdx + 1).trim();
   }
 
-  // 태그: #tag1 #tag2 → ['tag1', 'tag2']
   const tags = (meta['태그'] || '').match(/#[^\s#]+/g)?.map(t => t.slice(1)) || [];
 
   return {
-    title:            meta['제목'] || '',
-    category:         meta['카테고리'] || meta['주제'] || '',
+    title:             meta['제목'] || '',
+    category:          meta['카테고리'] || meta['주제'] || '',
     tags,
-    contentHtml:      body,
+    contentHtml:       body,
     imageDescriptions,
   };
 }
 
+/* ───────── 이미지 플레이스홀더 ───────── */
+
 /**
- * HTML 본문에서 이미지 플레이스홀더 추출
+ * HTML 본문에서 [이미지: filename] 플레이스홀더 추출
  * <p>[이미지: filename.png]</p>
- * → [{ placeholder, filename, absolutePath }]
  */
 function extractImagePlaceholders(html, dirPath) {
   const regex = /<p>\[이미지:\s*([^\]]+)\]<\/p>/g;
   const result = [];
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    const filename = match[1].trim();
+  let m;
+  while ((m = regex.exec(html)) !== null) {
+    const filename = m[1].trim();
     result.push({
-      placeholder:  match[0],
+      placeholder:  m[0],
       filename,
       absolutePath: join(dirPath, filename),
     });
@@ -119,49 +112,43 @@ function extractImagePlaceholders(html, dirPath) {
   return result;
 }
 
+/* ───────── 포스트 로드 ───────── */
+
 /**
- * 플랫폼에 맞는 txt 파일 로드
+ * 플랫폼에 맞는 포스트 파일 로드
+ * platform.html 이 있으면 본문으로 우선 사용 (네이버용)
+ *
  * @param {'tistory'|'naver'} platform
- * @returns { title, category, tags, contentHtml, images, dirPath }
+ * @returns {{ title, category, tags, contentHtml, images, dirPath }}
  */
 export function loadTodayPost(platform) {
-  const dirPath = getTodayDir();
+  const dirPath = resolveDir();
   const txtFile = join(dirPath, `${platform}.txt`);
 
-  if (!existsSync(txtFile)) {
-    throw new Error(`파일이 없습니다: ${txtFile}`);
-  }
+  if (!existsSync(txtFile)) throw new Error(`파일이 없습니다: ${txtFile}`);
 
-  const raw = readFileSync(txtFile, 'utf-8');
-  const { title, category, tags, contentHtml: txtBody, imageDescriptions } = parseTxt(raw);
+  const { title, category, tags, contentHtml: txtBody, imageDescriptions } = parseTxt(
+    readFileSync(txtFile, 'utf-8')
+  );
 
-  // platform.html 이 있으면 본문으로 사용 (네이버용)
   const htmlFile = join(dirPath, `${platform}.html`);
-  const bodyHtml = existsSync(htmlFile)
-    ? readFileSync(htmlFile, 'utf-8')
-    : txtBody;
+  const bodyHtml = existsSync(htmlFile) ? readFileSync(htmlFile, 'utf-8') : txtBody;
 
   const images = extractImagePlaceholders(bodyHtml, dirPath).map(img => ({
     ...img,
     description: imageDescriptions[img.filename] || img.filename,
   }));
 
-  return {
-    title,
-    category,
-    tags,
-    contentHtml: bodyHtml,
-    images,
-    dirPath,
-  };
+  return { title, category, tags, contentHtml: bodyHtml, images, dirPath };
 }
+
+/* ───────── 유틸 ───────── */
 
 /**
  * 이미지 파일을 base64 data URI로 변환
  */
 export function imageToDataUri(absolutePath) {
-  const ext = extname(absolutePath).slice(1).toLowerCase();
+  const ext  = extname(absolutePath).slice(1).toLowerCase();
   const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[ext] || 'image/png';
-  const data = readFileSync(absolutePath).toString('base64');
-  return `data:${mime};base64,${data}`;
+  return `data:${mime};base64,${readFileSync(absolutePath).toString('base64')}`;
 }

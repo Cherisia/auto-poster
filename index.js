@@ -1,58 +1,71 @@
 import 'dotenv/config';
+import readline from 'readline';
+import { listBlogDirs, loadTodayPost } from './src/content/loader.js';
 import { tistoryPost } from './src/platforms/tistory.js';
-import { naverPost } from './src/platforms/naver.js';
-import { loadTodayPost } from './src/content/loader.js';
+import { naverPost }   from './src/platforms/naver.js';
 
-const args = process.argv.slice(2);
+const PLATFORMS = ['tistory', 'naver'];
 
-async function main() {
-  try {
+/* ───────── 폴더 선택 메뉴 ───────── */
 
-    // --post tistory | naver | all
-    const postIdx = args.indexOf('--post');
-    if (postIdx !== -1) {
-      await runPost(args[postIdx + 1]);
-      return;
-    }
+async function selectDir() {
+  const dirs = listBlogDirs();
+  if (dirs.length === 0) throw new Error('블로그 폴더가 없습니다.');
 
-    printHelp();
+  console.log('\n========================================');
+  console.log('  블로그 글 선택');
+  console.log('========================================');
+  dirs.forEach((d, i) => console.log(`  ${String(i + 1).padStart(2)}. ${d.name}`));
+  console.log('----------------------------------------');
 
-  } catch (err) {
-    console.error('[error]', err.message);
-    process.exit(1);
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise(resolve => rl.question(`번호 선택 (1~${dirs.length}): `, resolve));
+  rl.close();
+
+  const idx = parseInt(answer.trim(), 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= dirs.length) {
+    throw new Error('잘못된 번호입니다.');
   }
+  return dirs[idx];
 }
 
-async function runPost(platform) {
-  if (!platform || !['tistory', 'naver', 'all'].includes(platform)) {
-    console.log('사용법: node index.js --post [tistory|naver|all]');
-    return;
-  }
+/* ───────── 포스팅 실행 ───────── */
 
-  const targets = platform === 'all' ? ['tistory', 'naver'] : [platform];
+async function runPost(platform) {
+  const targets = platform === 'all' ? PLATFORMS : [platform];
+
+  const selected = await selectDir();
+  console.log(`\n선택: ${selected.name}`);
+  process.env.BLOG_DIR = selected.path;
 
   for (const target of targets) {
     const post = loadTodayPost(target);
     console.log(`\n📄 [${target}] "${post.title}"`);
     console.log(`   카테고리: ${post.category}`);
     console.log(`   태그: ${post.tags.join(', ')}`);
-    console.log(`   이미지: ${post.images.length}개`);
+    console.log(`   이미지: ${post.images.length}개\n`);
 
     if (target === 'tistory') await tistoryPost(post);
     if (target === 'naver')   await naverPost(post);
   }
 }
 
-function printHelp() {
-  console.log('');
-  console.log('사용법:');
-  console.log('  node index.js --post [tistory|naver|all]');
-  console.log('');
-  console.log('준비:');
-  console.log('  1. start-chrome.bat 으로 크롬 실행');
-  console.log('  2. 티스토리 로그인');
-  console.log('  3. node index.js --post tistory');
-  console.log('');
+/* ───────── 진입점 ───────── */
+
+async function main() {
+  const platform = process.argv[2];
+
+  if (!platform || !['tistory', 'naver', 'all'].includes(platform)) {
+    console.log('\n사용법: node index.js [tistory|naver|all]');
+    console.log('\n  post.bat            티스토리 포스팅');
+    console.log('  post-naver.bat      네이버 포스팅\n');
+    process.exit(1);
+  }
+
+  await runPost(platform);
 }
 
-main();
+main().catch(err => {
+  console.error('[error]', err.message);
+  process.exit(1);
+});

@@ -17,8 +17,9 @@ const SEL = {
 export async function tistoryPost(post) {
   if (!BLOG_URL) throw new Error('[tistory] .env 에 TISTORY_BLOG_URL 이 없습니다.');
 
-  const isDraft = readConfig().publish.mode === 'draft';
-  console.log(`[tistory] 포스팅 시작: "${post.title}" (${isDraft ? '임시저장' : '발행'})`);
+  const cfg   = readConfig().tistory;
+  const mode  = cfg.mode; // 'draft' | 'publish' | 'schedule'
+  console.log(`[tistory] 포스팅 시작: "${post.title}" (${modeLabel(mode)})`);
 
   const browser = await connectBrowser();
   const page    = await newPage(browser);
@@ -36,7 +37,10 @@ export async function tistoryPost(post) {
   await setContent(page, finalHtml);
   if (post.category)     await setCategory(page, post.category);
   if (post.tags?.length) await inputTags(page, post.tags);
-  isDraft ? await saveDraft(page) : await publish(page);
+
+  if (mode === 'draft')    await saveDraft(page);
+  else if (mode === 'schedule') await schedulePublish(page, cfg.scheduleTime || '10:00');
+  else                     await publish(page);
 
   await page.waitForTimeout(2000);
   const url = page.url();
@@ -87,6 +91,8 @@ async function inputTags(page, tags) {
   }
 }
 
+/* ───────── 저장 / 발행 / 예약 ───────── */
+
 async function saveDraft(page) {
   await page.evaluate(sel => {
     document.querySelector(sel)?.click();
@@ -104,6 +110,64 @@ async function publish(page) {
     console.log('[tistory] 발행 완료');
   } catch {
     console.log('[tistory] 발행 팝업 없음');
+  }
+}
+
+async function schedulePublish(page, scheduleTime) {
+  const { dateStr, timeStr } = getScheduleDateTime(scheduleTime);
+  console.log(`[tistory] 예약 발행: ${dateStr} ${timeStr}`);
+
+  // 발행 레이어 열기
+  await page.click(SEL.publish);
+  await page.waitForTimeout(500);
+
+  // "예약" 탭/버튼 클릭
+  try {
+    const scheduleTab = page.locator(
+      'button:has-text("예약"), label:has-text("예약"), [class*="schedule"]:not([class*="no"])'
+    ).first();
+    await scheduleTab.waitFor({ timeout: 5000 });
+    await scheduleTab.click();
+    await page.waitForTimeout(300);
+  } catch {
+    console.log('[tistory] 예약 탭 없음, 스킵');
+    return;
+  }
+
+  // 날짜 입력
+  try {
+    const dateInput = page.locator(
+      'input[type="date"], input[name*="date"], [class*="date"] input[type="text"]'
+    ).first();
+    await dateInput.waitFor({ timeout: 3000 });
+    await dateInput.fill(dateStr);
+    await page.waitForTimeout(200);
+  } catch {
+    console.log('[tistory] 날짜 입력 스킵');
+  }
+
+  // 시간 입력
+  try {
+    const timeInput = page.locator(
+      'input[type="time"], input[name*="time"], [class*="time"] input[type="text"]'
+    ).first();
+    await timeInput.waitFor({ timeout: 3000 });
+    await timeInput.fill(timeStr);
+    await page.waitForTimeout(200);
+  } catch {
+    console.log('[tistory] 시간 입력 스킵');
+  }
+
+  // 예약 발행 확인 버튼
+  try {
+    const confirmBtn = page.locator(
+      'button:has-text("예약 발행"), button:has-text("예약발행"), button:has-text("확인")'
+    ).last();
+    await confirmBtn.waitFor({ timeout: 3000 });
+    await confirmBtn.click();
+    console.log('[tistory] 예약 발행 완료');
+  } catch {
+    console.log('[tistory] 예약 확인 버튼 없음, 스킵');
   }
 }
 
@@ -132,7 +196,6 @@ async function uploadImagesAndReplace(page, html, images) {
 
 async function uploadImage(page, absolutePath, description) {
   try {
-    // 첨부 > 사진 클릭 → 파일 선택창 대기
     const [fileChooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 5000 }),
       page.evaluate(async () => {
@@ -146,7 +209,6 @@ async function uploadImage(page, absolutePath, description) {
     await fileChooser.setFiles(absolutePath);
     await page.waitForTimeout(4000);
 
-    // TinyMCE에서 [##_Image|...|CDM|버전|{json}_##] 추출 후 caption 주입
     return await page.evaluate((desc) => {
       const ed = window.tinymce?.get('editor-tistory');
       if (!ed) return null;
@@ -174,4 +236,22 @@ async function uploadImage(page, absolutePath, description) {
     console.log(`[tistory] 이미지 업로드 오류: ${err.message}`);
     return null;
   }
+}
+
+/* ───────── 유틸 ───────── */
+
+/** 다음날 scheduleTime(HH:MM) 기준 날짜/시간 문자열 반환 */
+function getScheduleDateTime(scheduleTime) {
+  const [hour, minute] = (scheduleTime || '10:00').split(':').map(Number);
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(hour, minute, 0, 0);
+
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return { dateStr, timeStr };
+}
+
+function modeLabel(mode) {
+  return { draft: '임시저장', publish: '즉시발행', schedule: '예약발행' }[mode] || mode;
 }

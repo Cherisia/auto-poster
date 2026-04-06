@@ -1,10 +1,11 @@
 {
-  "publish": {
+  "comment": "mode: 'draft'(임시저장) | 'publish'(즉시발행) | 'schedule'(예약발행) / scheduleTime: 예약 시간 HH:MM (다음날 해당 시각)",
+  "tistory": {
     "mode": "draft",
-    "comment": "발행 모드: 'draft'(임시저장) | 'publish'(즉시발행)"
+    "scheduleTime": "20:00"
   },
-  "platforms": {
-    "tistory": { "enabled": true },
-    "naver":   { "enabled": false }
+  "naver": {
+    "mode": "schedule",
+    "scheduleTime": "20:00"
   }
 }

@@ -7,7 +7,9 @@
   "scripts": {
     "post:tistory": "node index.js tistory",
     "post:naver": "node index.js naver",
-    "post:all": "node index.js all"
+    "post:all": "node index.js all",
+    "generate": "node generate.js",
+    "generate:all": "node generate.js --all"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",

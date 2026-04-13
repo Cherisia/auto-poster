@@ -6,3 +6,5 @@ temp/
 .browser-endpoint
 .chrome-profile/
 CLAUDE.md
+# AI 생성 파일은 generated/ 폴더에 커밋됨 (gitignore 제외)
+

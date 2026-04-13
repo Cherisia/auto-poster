@@ -1,0 +1,70 @@
+name: Generate Blog Post
+
+on:
+  # 매일 오전 6시 KST (= 전날 21:00 UTC)
+  schedule:
+    - cron: '0 21 * * *'
+
+  # 수동 실행 (Actions 탭에서 직접 트리거)
+  workflow_dispatch:
+    inputs:
+      calculator_id:
+        description: '특정 계산기 ID (비워두면 큐에서 자동 선택)'
+        required: false
+        default: ''
+      generate_all:
+        description: '큐 전체 생성 (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # 생성 파일 커밋을 위해 필요
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 패키지 설치
+        run: npm ci
+
+      - name: 블로그 글 생성
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BLOG_BASE: ${{ github.workspace }}/generated
+        run: |
+          if [ "${{ github.event.inputs.generate_all }}" = "true" ]; then
+            echo "📋 전체 큐 생성 모드"
+            node generate.js --all
+          elif [ -n "${{ github.event.inputs.calculator_id }}" ]; then
+            echo "🎯 지정 계산기: ${{ github.event.inputs.calculator_id }}"
+            node generate.js "${{ github.event.inputs.calculator_id }}"
+          else
+            echo "🔄 큐 자동 선택 모드"
+            node generate.js
+          fi
+
+      - name: 생성된 파일 커밋 & 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add generated/ generate-state.json
+          if git diff --staged --quiet; then
+            echo "변경사항 없음 (이미 최신 상태)"
+          else
+            DATE=$(date -u +%Y%m%d)
+            git commit -m "auto: generate blog post ${DATE}"
+            git push
+            echo "✅ 생성 파일 커밋 완료"
+          fi

@@ -1,13 +1,20 @@
 /**
  * Gemini API를 사용한 블로그 글 생성기
+ *
+ * 호출 전략: [API 키 우선순위] × [모델 폴백] 조합
+ *   1. yhc2549 키 + gemini-2.0-flash
+ *   2. yhc2549 키 + 다음 모델들 (할당량 초과 시)
+ *   3. yhc920923 키 + gemini-2.0-flash (yhc2549 전체 소진 시)
+ *   4. yhc920923 키 + 다음 모델들
  */
 
 // 우선순위 순서로 시도할 모델 목록 (무료 티어 지원)
 const GEMINI_MODELS = [
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
+  'gemini-2.5-flash-preview-04-17',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-flash-8b-latest',
 ];
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -46,43 +53,62 @@ async function callGeminiModel(prompt, apiKey, model) {
 }
 
 /**
- * Gemini API 호출 — 모델 폴백 + 재시도 포함
- * @param {string} prompt
- * @param {string} apiKey
- * @returns {Promise<string>} 응답 텍스트
+ * 단일 API 키로 모델 폴백 시도
+ * 429(할당량 초과) 시 다음 모델로 전환, 그 외 오류는 즉시 throw
+ * @returns {Promise<string>} 성공 시 응답 텍스트, 전 모델 실패 시 throw
  */
-async function callGemini(prompt, apiKey) {
+async function callGeminiWithKey(prompt, apiKey, keyLabel) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   for (const model of GEMINI_MODELS) {
-    console.log(`  → 모델 시도: ${model}`);
+    console.log(`  → [${keyLabel}] ${model} 시도`);
     let lastErr;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         const text = await callGeminiModel(prompt, apiKey, model);
-        console.log(`  ✓ 모델 성공: ${model}`);
+        console.log(`  ✓ [${keyLabel}] ${model} 성공`);
         return text;
       } catch (e) {
         lastErr = e;
         if (e.code === 429) {
-          // rate limit: 다음 시도 전 대기 (15s, 30s)
-          const waitSec = attempt * 15;
-          if (attempt < 3) {
-            console.log(`  ⚠️  할당량 초과 (${model}) — ${waitSec}초 후 재시도...`);
-            await sleep(waitSec * 1000);
+          if (attempt < 2) {
+            console.log(`  ⚠️  [${keyLabel}] 할당량 초과 (${model}) — 15초 후 재시도...`);
+            await sleep(15000);
           } else {
-            console.log(`  ✗ 할당량 소진: ${model} — 다음 모델로 전환`);
+            console.log(`  ✗ [${keyLabel}] 할당량 소진: ${model} — 다음 모델로`);
           }
         } else {
-          console.log(`  ✗ 오류: ${e.message}`);
-          break; // 429 외 오류는 같은 모델 재시도 불필요
+          console.log(`  ✗ [${keyLabel}] 오류: ${e.message}`);
+          break;
         }
       }
     }
-    // 마지막 모델까지 실패 시 에러 누적
-    if (model === GEMINI_MODELS.at(-1)) throw lastErr;
   }
-  throw new Error('모든 Gemini 모델 호출 실패');
+  throw Object.assign(new Error(`[${keyLabel}] 모든 모델 할당량 소진`), { code: 429 });
+}
+
+/**
+ * Gemini API 호출 — API 키 우선순위 + 모델 폴백
+ * @param {string} prompt
+ * @param {string[]} apiKeys - [우선키, 백업키, ...] 순서
+ * @returns {Promise<string>} 응답 텍스트
+ */
+async function callGemini(prompt, apiKeys) {
+  const keys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
+
+  for (let i = 0; i < keys.length; i++) {
+    const { key, label } = keys[i];
+    try {
+      return await callGeminiWithKey(prompt, key, label);
+    } catch (e) {
+      if (e.code === 429 && i < keys.length - 1) {
+        console.log(`\n  ⚡ [${label}] 전체 소진 → 다음 계정으로 전환\n`);
+      } else {
+        throw e;
+      }
+    }
+  }
+  throw new Error('모든 API 키 할당량 소진');
 }
 
 /**
@@ -108,12 +134,12 @@ function parseJsonResponse(text) {
 /**
  * 블로그 콘텐츠 생성
  * @param {string} prompt - buildPrompt()로 생성된 프롬프트
- * @param {string} apiKey - Gemini API 키
+ * @param {Array<{key:string, label:string}>} apiKeys - API 키 우선순위 배열
  * @returns {Promise<{tistory_txt: string, naver_txt: string, naver_html: string}>}
  */
-export async function generateContent(prompt, apiKey) {
+export async function generateContent(prompt, apiKeys) {
   console.log('  → Gemini API 호출 중...');
-  const raw = await callGemini(prompt, apiKey);
+  const raw = await callGemini(prompt, apiKeys);
 
   console.log('  → 응답 파싱 중...');
   const result = parseJsonResponse(raw);

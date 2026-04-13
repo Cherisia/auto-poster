@@ -41,7 +41,8 @@ jobs:
 
       - name: 블로그 글 생성
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}               # yhc2549 (우선)
+          GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }} # yhc920923 (백업)
           BLOG_BASE: ${{ github.workspace }}/generated
         run: |
           if [ "${{ github.event.inputs.generate_all }}" = "true" ]; then

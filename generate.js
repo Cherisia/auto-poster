@@ -20,8 +20,12 @@ import { POST_QUEUE, CALCULATORS, COMPLETED_POSTS } from './src/ai/calculators.j
 
 // ── 환경 변수 ────────────────────────────────────────────────────────────────
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
+// API 키 우선순위 설정 (yhc2549 먼저 → yhc920923 백업)
+const API_KEYS = [];
+if (process.env.GEMINI_API_KEY)        API_KEYS.push({ key: process.env.GEMINI_API_KEY,        label: 'yhc2549(primary)' });
+if (process.env.GEMINI_API_KEY_BACKUP) API_KEYS.push({ key: process.env.GEMINI_API_KEY_BACKUP, label: 'yhc920923(backup)' });
+
+if (API_KEYS.length === 0) {
   console.error('[error] GEMINI_API_KEY 환경변수가 없습니다.');
   process.exit(1);
 }
@@ -78,8 +82,8 @@ async function generateOne(calId) {
   // 프롬프트 빌드
   const prompt = buildPrompt(calId, today);
 
-  // Gemini 호출
-  const { tistory_txt, naver_txt, naver_html } = await generateContent(prompt, GEMINI_API_KEY);
+  // Gemini 호출 (yhc2549 우선 → yhc920923 폴백)
+  const { tistory_txt, naver_txt, naver_html } = await generateContent(prompt, API_KEYS);
 
   // 출력 폴더 생성
   const outDir = join(BLOG_BASE, `${dateStr}-${calId}`);

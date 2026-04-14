@@ -10,11 +10,11 @@ import { readConfig } from '../core/config.js';
 
 // 우선순위 순서로 시도할 모델 목록 (무료 티어 지원)
 const FALLBACK_MODELS = [
+  'gemini-2.5-flash',
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
-  'gemini-2.5-flash-preview-04-17',
-  'gemini-1.5-flash-latest',
-  'gemini-1.5-flash-8b-latest',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
 ];
 
 function getGeminiModels() {

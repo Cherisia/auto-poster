@@ -3,8 +3,6 @@ import { resolve, join, extname } from 'path';
 import { connectBrowser, newPage } from '../core/browser.js';
 import { readConfig } from '../core/config.js';
 
-const BLOG_ID   = process.env.NAVER_BLOG_ID;
-const WRITE_URL = `https://blog.naver.com/${BLOG_ID}/postwrite`;
 
 // DOM 검사로 확인한 정확한 셀렉터
 const SEL = {
@@ -29,9 +27,12 @@ const SEL = {
 /* ───────── 진입점 ───────── */
 
 export async function naverPost(post) {
-  if (!BLOG_ID) throw new Error('[naver] .env 에 NAVER_BLOG_ID 가 없습니다.');
+  const config   = readConfig();
+  const blogId   = config.blog.naver_id;
+  const writeUrl = `https://blog.naver.com/${blogId}/postwrite`;
+  if (!blogId) throw new Error('[naver] config.json 에 blog.naver_id 가 없습니다.');
 
-  const cfg  = readConfig().naver;
+  const cfg  = config.naver;
   const mode = cfg.mode;
   console.log(`[naver] 포스팅 시작: "${post.title}" (${modeLabel(mode)})`);
 
@@ -54,7 +55,7 @@ export async function naverPost(post) {
   // ② 네이버 글쓰기 페이지
   const page = await newPage(browser);
   page.on('dialog', d => d.dismiss().catch(() => {}));
-  await page.goto(WRITE_URL, { waitUntil: 'networkidle' });
+  await page.goto(writeUrl, { waitUntil: 'networkidle' });
 
   if (page.url().includes('login') || page.url().includes('nid.naver')) {
     await page.close();

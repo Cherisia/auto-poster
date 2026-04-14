@@ -2,7 +2,6 @@ import { existsSync } from 'fs';
 import { connectBrowser, newPage } from '../core/browser.js';
 import { readConfig } from '../core/config.js';
 
-const BLOG_URL = process.env.TISTORY_BLOG_URL?.replace(/\/$/, '');
 
 const SEL = {
   title:    'input[id*="title"], [placeholder*="제목을 입력"]',
@@ -15,9 +14,11 @@ const SEL = {
 /* ───────── 진입점 ───────── */
 
 export async function tistoryPost(post) {
-  if (!BLOG_URL) throw new Error('[tistory] .env 에 TISTORY_BLOG_URL 이 없습니다.');
+  const config  = readConfig();
+  const blogUrl = config.blog.tistory_url.replace(/\/$/, '');
+  if (!blogUrl) throw new Error('[tistory] config.json 에 blog.tistory_url 이 없습니다.');
 
-  const cfg   = readConfig().tistory;
+  const cfg   = config.tistory;
   const mode  = cfg.mode; // 'draft' | 'publish' | 'schedule'
   console.log(`[tistory] 포스팅 시작: "${post.title}" (${modeLabel(mode)})`);
 
@@ -25,7 +26,7 @@ export async function tistoryPost(post) {
   const page    = await newPage(browser);
   page.on('dialog', d => d.dismiss().catch(() => {}));
 
-  await page.goto(`${BLOG_URL}/manage/newpost/`, { waitUntil: 'networkidle' });
+  await page.goto(`${blogUrl}/manage/newpost/`, { waitUntil: 'networkidle' });
 
   if (page.url().includes('login') || page.url().includes('auth')) {
     await page.close();

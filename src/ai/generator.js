@@ -2,20 +2,33 @@
  * Gemini API를 사용한 블로그 글 생성기
  *
  * 호출 전략: [API 키 우선순위] × [모델 폴백] 조합
- *   1. yhc2549 키 + gemini-2.0-flash
- *   2. yhc2549 키 + 다음 모델들 (할당량 초과 시)
- *   3. yhc920923 키 + gemini-2.0-flash (yhc2549 전체 소진 시)
- *   4. yhc920923 키 + 다음 모델들
+ *   1. primary 키 + config.json의 gemini.model 또는 기본 모델
+ *   2. primary 키 + 다음 모델들 (할당량 초과 시)
+ *   3. backup 키 + 동일한 모델 순서
  */
+import { readConfig } from '../core/config.js';
 
 // 우선순위 순서로 시도할 모델 목록 (무료 티어 지원)
-const GEMINI_MODELS = [
+const FALLBACK_MODELS = [
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
   'gemini-2.5-flash-preview-04-17',
   'gemini-1.5-flash-latest',
   'gemini-1.5-flash-8b-latest',
 ];
+
+function getGeminiModels() {
+  // config.json의 gemini.model 우선, 없으면 폴백 목록 첫 번째 사용
+  const preferred = readConfig().gemini?.model?.trim();
+  if (!preferred) return FALLBACK_MODELS;
+  // 지정 모델을 맨 앞에, 나머지는 중복 제거 후 이어 붙임
+  return [preferred, ...FALLBACK_MODELS.filter(m => m !== preferred)];
+}
+
+function getModels() {
+  return getGeminiModels();
+}
+
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 /**
@@ -60,7 +73,7 @@ async function callGeminiModel(prompt, apiKey, model) {
 async function callGeminiWithKey(prompt, apiKey, keyLabel) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  for (const model of GEMINI_MODELS) {
+  for (const model of getModels()) {
     console.log(`  → [${keyLabel}] ${model} 시도`);
     let lastErr;
     for (let attempt = 1; attempt <= 2; attempt++) {

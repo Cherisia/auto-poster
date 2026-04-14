@@ -1,9 +1,24 @@
 {
-  "comment": "mode: 'draft'(임시저장) | 'publish'(즉시발행) | 'schedule'(예약발행) / scheduleTime: 예약 시간 HH:MM (다음날 해당 시각)",
+  "comment": "mode: draft (임시저장) | publish (즉시발행) | schedule (예약발행) / scheduleTime (예약시간)",
+
+  "blog": {
+    "tistory_url": "https://severa.tistory.com/",
+    "naver_id": "cherisia_",
+    "base_path": "C:/Users/user/OneDrive/바탕 화면/희찬/blog"
+  },
+
+  "gemini": {
+    "model": "gemini-2.0-flash",
+    "key_label": "primary",
+    "key_backup_label": "backup",
+    "model_options": "gemini-2.5-flash-preview-04-17 | gemini-2.0-flash"
+  },
+
   "tistory": {
     "mode": "draft",
     "scheduleTime": "20:00"
   },
+
   "naver": {
     "mode": "schedule",
     "scheduleTime": "20:00"

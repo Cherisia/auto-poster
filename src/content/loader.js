@@ -1,43 +1,44 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
-
-const BLOG_BASE = process.env.BLOG_BASE;
+import { readConfig } from '../core/config.js';
 
 /* ───────── 폴더 탐색 ───────── */
 
 /**
  * BLOG_DIR 환경변수 → 직접 지정 폴더
- * 없으면 BLOG_BASE 에서 오늘 날짜(YYYYMMDD) 폴더, 없으면 가장 최근 폴더
+ * 없으면 config.json의 blog.base_path 에서 오늘 날짜(YYYYMMDD) 폴더, 없으면 가장 최근 폴더
  */
 function resolveDir() {
-  if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
+  const basePath = readConfig().blog.base_path;
+  if (!basePath) throw new Error('config.json 에 blog.base_path 경로가 없습니다.');
   if (process.env.BLOG_DIR) return process.env.BLOG_DIR;
 
-  const dirs = readdirSync(BLOG_BASE)
+  const dirs = readdirSync(basePath)
     .filter(f => /^\d{8}/.test(f))
     .sort()
     .reverse();
 
-  if (dirs.length === 0) throw new Error(`블로그 폴더가 없습니다: ${BLOG_BASE}`);
+  if (dirs.length === 0) throw new Error(`블로그 폴더가 없습니다: ${basePath}`);
 
   const today = new Date();
   const prefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
   const todayDir = dirs.find(f => f.startsWith(prefix));
 
   if (!todayDir) console.log(`[loader] 오늘 폴더 없음 → 최근 폴더 사용: ${dirs[0]}`);
-  return join(BLOG_BASE, todayDir || dirs[0]);
+  return join(basePath, todayDir || dirs[0]);
 }
 
 /**
  * YYYYMMDD 형식 폴더 목록 (최신순)
  */
 export function listBlogDirs() {
-  if (!BLOG_BASE) throw new Error('.env 에 BLOG_BASE 경로가 없습니다.');
-  return readdirSync(BLOG_BASE)
+  const basePath = readConfig().blog.base_path;
+  if (!basePath) throw new Error('config.json 에 blog.base_path 경로가 없습니다.');
+  return readdirSync(basePath)
     .filter(f => /^\d{8}/.test(f))
     .sort()
     .reverse()
-    .map(name => ({ name, path: join(BLOG_BASE, name) }));
+    .map(name => ({ name, path: join(basePath, name) }));
 }
 
 /* ───────── txt 파싱 ───────── */

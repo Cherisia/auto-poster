@@ -17,20 +17,23 @@ import { join } from 'path';
 import { generateContent } from './src/ai/generator.js';
 import { buildPrompt }     from './src/ai/prompt.js';
 import { POST_QUEUE, CALCULATORS, COMPLETED_POSTS } from './src/ai/calculators.js';
+import { readConfig } from './src/core/config.js';
 
-// ── 환경 변수 ────────────────────────────────────────────────────────────────
+// ── 설정 로드 ─────────────────────────────────────────────────────────────────
 
-// API 키 우선순위 설정 (yhc2549 먼저 → yhc920923 백업)
+const cfg = readConfig();
+
+// API 키 우선순위 설정 (GEMINI_API_KEY 먼저 → GEMINI_API_KEY_BACKUP 백업)
 const API_KEYS = [];
-if (process.env.GEMINI_API_KEY)        API_KEYS.push({ key: process.env.GEMINI_API_KEY,        label: 'yhc2549(primary)' });
-if (process.env.GEMINI_API_KEY_BACKUP) API_KEYS.push({ key: process.env.GEMINI_API_KEY_BACKUP, label: 'yhc920923(backup)' });
+if (process.env.GEMINI_API_KEY)        API_KEYS.push({ key: process.env.GEMINI_API_KEY,        label: cfg.gemini?.key_label        || 'primary' });
+if (process.env.GEMINI_API_KEY_BACKUP) API_KEYS.push({ key: process.env.GEMINI_API_KEY_BACKUP, label: cfg.gemini?.key_backup_label || 'backup' });
 
 if (API_KEYS.length === 0) {
   console.error('[error] GEMINI_API_KEY 환경변수가 없습니다.');
   process.exit(1);
 }
 
-const BLOG_BASE = process.env.BLOG_BASE || join(process.cwd(), 'generated');
+const BLOG_BASE = cfg.blog?.base_path || join(process.cwd(), 'generated');
 
 // ── 상태 파일 ────────────────────────────────────────────────────────────────
 

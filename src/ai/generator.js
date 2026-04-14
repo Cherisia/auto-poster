@@ -41,7 +41,7 @@ async function callGeminiModel(prompt, apiKey, model) {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 65536,
       responseMimeType: 'application/json',
     },
   };

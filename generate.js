@@ -17,7 +17,8 @@ import { join } from 'path';
 import { generateContent } from './src/ai/generator.js';
 import { buildPrompt }     from './src/ai/prompt.js';
 import { POST_QUEUE, CALCULATORS, COMPLETED_POSTS } from './src/ai/calculators.js';
-import { readConfig } from './src/core/config.js';
+import { readConfig }      from './src/core/config.js';
+import { captureImages }   from './src/capture/index.js';
 
 // ── 설정 로드 ─────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,13 @@ async function generateOne(calId) {
   console.log(`   tistory.txt  (${tistory_txt.length}자)`);
   console.log(`   naver.txt    (${naver_txt.length}자)`);
   console.log(`   naver.html   (${naver_html.length}자)`);
+
+  // 이미지 캡처 (실패해도 전체 중단 안 함)
+  try {
+    await captureImages(calId, outDir);
+  } catch (e) {
+    console.warn(`  ⚠️  이미지 캡처 실패: ${e.message}`);
+  }
 
   return outDir;
 }

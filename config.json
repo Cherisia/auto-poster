@@ -14,6 +14,12 @@
     "model_options": "gemini-2.5-flash-preview-04-17 | gemini-2.0-flash"
   },
 
+  "capture": {
+    "viewportWidth": 600,
+    "viewportHeight": 1200,
+    "deviceScaleFactor": 1
+  },
+
   "tistory": {
     "mode": "draft",
     "scheduleTime": "20:00"
